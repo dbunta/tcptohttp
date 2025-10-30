@@ -1,12 +1,11 @@
 package main
 
 import (
-	"errors"
 	"fmt"
-	"io"
 	"net"
 	"os"
-	"strings"
+
+	"github.com/dbunta/httpfromtcp/internal/request"
 )
 
 func main() {
@@ -25,11 +24,20 @@ func main() {
 
 		fmt.Println("Connection accepted")
 
-		channel := getLinesChannel(conn)
-		for v := range channel {
-			// fmt.Printf("read: %s\n", v)
-			fmt.Printf("%s\n", v)
+		req, err := request.RequestFromReader(conn)
+		if err != nil {
+			fmt.Printf("%w", err)
+			os.Exit(1)
 		}
+		fmt.Println("Request line:")
+		fmt.Printf("- Method: %s\n", req.RequestLine.Method)
+		fmt.Printf("- Target: %s\n", req.RequestLine.RequestTarget)
+		fmt.Printf("- Version: %s\n", req.RequestLine.HttpVersion)
+		// channel := getLinesChannel(conn)
+		// for v := range channel {
+		// 	// fmt.Printf("read: %s\n", v)
+		// 	fmt.Printf("%s\n", v)
+		// }
 
 	}
 
@@ -48,68 +56,68 @@ func main() {
 	os.Exit(0)
 }
 
-func getLinesChannel2(f io.ReadCloser) <-chan string {
-	channel := make(chan string)
+// func getLinesChannel2(f io.ReadCloser) <-chan string {
+// 	channel := make(chan string)
 
-	go func(channel chan string) {
-		b := make([]byte, 8)
-		_, err := f.Read(b)
-		if err != nil {
-			// fmt.Print("Error reading messages.txt\n")
-			fmt.Print(err)
-			os.Exit(1)
-		}
+// 	go func(channel chan string) {
+// 		b := make([]byte, 8)
+// 		_, err := f.Read(b)
+// 		if err != nil {
+// 			// fmt.Print("Error reading messages.txt\n")
+// 			fmt.Print(err)
+// 			os.Exit(1)
+// 		}
 
-		var currLine string
-		for err == nil {
-			currLine += string(b)
-			clear(b)
-			if strings.Contains(currLine, "\n") {
-				lines := strings.Split(currLine, "\n")
-				var i int
-				for i = 0; i < len(lines)-1; i++ {
-					channel <- lines[i]
-				}
-				currLine = lines[len(lines)-1]
-			}
-			_, err = f.Read(b)
-		}
+// 		var currLine string
+// 		for err == nil {
+// 			currLine += string(b)
+// 			clear(b)
+// 			if strings.Contains(currLine, "\n") {
+// 				lines := strings.Split(currLine, "\n")
+// 				var i int
+// 				for i = 0; i < len(lines)-1; i++ {
+// 					channel <- lines[i]
+// 				}
+// 				currLine = lines[len(lines)-1]
+// 			}
+// 			_, err = f.Read(b)
+// 		}
 
-		fmt.Println("Connection closed")
-		defer close(channel)
-		defer f.Close()
-	}(channel)
+// 		fmt.Println("Connection closed")
+// 		defer close(channel)
+// 		defer f.Close()
+// 	}(channel)
 
-	return channel
-}
+// 	return channel
+// }
 
-func getLinesChannel(f io.ReadCloser) <-chan string {
-	lines := make(chan string)
-	go func() {
-		defer f.Close()
-		defer close(lines)
-		currentLineContents := ""
-		for {
-			b := make([]byte, 8, 8)
-			n, err := f.Read(b)
-			if err != nil {
-				if currentLineContents != "" {
-					lines <- currentLineContents
-				}
-				if errors.Is(err, io.EOF) {
-					break
-				}
-				fmt.Printf("error: %s\n", err.Error())
-				return
-			}
-			str := string(b[:n])
-			parts := strings.Split(str, "\n")
-			for i := 0; i < len(parts)-1; i++ {
-				lines <- fmt.Sprintf("%s%s", currentLineContents, parts[i])
-				currentLineContents = ""
-			}
-			currentLineContents += parts[len(parts)-1]
-		}
-	}()
-	return lines
-}
+// func getLinesChannel(f io.ReadCloser) <-chan string {
+// 	lines := make(chan string)
+// 	go func() {
+// 		defer f.Close()
+// 		defer close(lines)
+// 		currentLineContents := ""
+// 		for {
+// 			b := make([]byte, 8, 8)
+// 			n, err := f.Read(b)
+// 			if err != nil {
+// 				if currentLineContents != "" {
+// 					lines <- currentLineContents
+// 				}
+// 				if errors.Is(err, io.EOF) {
+// 					break
+// 				}
+// 				fmt.Printf("error: %s\n", err.Error())
+// 				return
+// 			}
+// 			str := string(b[:n])
+// 			parts := strings.Split(str, "\n")
+// 			for i := 0; i < len(parts)-1; i++ {
+// 				lines <- fmt.Sprintf("%s%s", currentLineContents, parts[i])
+// 				currentLineContents = ""
+// 			}
+// 			currentLineContents += parts[len(parts)-1]
+// 		}
+// 	}()
+// 	return lines
+// }

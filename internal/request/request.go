@@ -2,7 +2,6 @@ package request
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"strings"
 )
@@ -60,14 +59,7 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		}
 		readToIndex += bytesRead
 
-		fmt.Println()
-		fmt.Printf("bytesRead: %d\n", bytesRead)
-		fmt.Printf("readtoIndex: %d\n", readToIndex)
-		fmt.Println()
-
-		fmt.Printf("buffer content: %s\n", string(buffer2))
 		bytesParsed, _ := request2.parse(buffer2)
-		fmt.Printf("bytesParsed: %d\n", bytesParsed)
 
 		if bytesParsed > 0 {
 			break
