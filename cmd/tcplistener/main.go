@@ -26,12 +26,12 @@ func main() {
 
 		req, err := request.RequestFromReader(conn)
 		if err != nil {
-			fmt.Printf("%w", err)
+			fmt.Printf("%v", err)
 			os.Exit(1)
 		}
 		fmt.Println("Request line:")
 		fmt.Printf("- Method: %s\n", req.RequestLine.Method)
-		fmt.Printf("- Target: %s\n", req.RequestLine.RequestTarget)
+		fmt.Printf("- Target: %s\n", req.RequestLine.HttpVersion)
 		fmt.Printf("- Version: %s\n", req.RequestLine.HttpVersion)
 		// channel := getLinesChannel(conn)
 		// for v := range channel {
