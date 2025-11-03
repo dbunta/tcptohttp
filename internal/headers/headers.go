@@ -52,6 +52,13 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 		return 0, false, fmt.Errorf("header key contains invalid character: %v", string(c))
 	}
 
-	h[strings.ToLower(string(k))] = string(bytes.TrimSpace(kvp[1]))
+	k_str := strings.ToLower(string(k))
+	val, ok := h[k_str]
+	if ok {
+		h[k_str] = val + "," + string(bytes.TrimSpace(kvp[1]))
+	} else {
+		h[k_str] = string(bytes.TrimSpace(kvp[1]))
+	}
+	// h[strings.ToLower(string(k))] = string(bytes.TrimSpace(kvp[1]))
 	return len(data), false, nil
 }

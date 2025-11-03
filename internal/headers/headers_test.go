@@ -72,4 +72,13 @@ func TestHeaders(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, 0, n)
 	assert.False(t, done)
+
+	// Test: Duplicate header key with unique values
+	headers = map[string]string{"host": "localhost:42069"}
+	data = []byte("HoST: localhost:42169\r\n\r\n")
+	n, done, err = headers.Parse(data)
+	require.NoError(t, err)
+	// assert.Equal(t, 0, n)
+	assert.False(t, done)
+	assert.Equal(t, headers["host"], "localhost:42069,localhost:42169")
 }
