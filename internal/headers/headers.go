@@ -20,7 +20,8 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	crlf_b := []byte(crlf)
 	// if data does not contain crlf
 	if !bytes.Contains(data, crlf_b) {
-		return 0, false, errors.New("data does not contain crlf")
+		return 0, false, nil
+		// return 0, false, errors.New("data does not contain crlf")
 	}
 
 	// if crlf is at beginning of data, return immediately
@@ -45,6 +46,7 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 		return 0, false, errors.New("no whitespace allowed between colon and header key")
 	}
 
+	fmt.Printf("Header Key: %v", string(k))
 	for _, c := range k {
 		if (c >= 97 && c <= 122) || (c >= 65 && c <= 90) || (c > 47 && c < 58) || c == 33 || (c >= 35 && c <= 39) || c == 42 || c == 43 || c == 45 || c == 46 || (c >= 94 && c <= 96) || c == 124 || c == 126 {
 			continue

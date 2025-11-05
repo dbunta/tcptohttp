@@ -1,0 +1,143 @@
+// package request
+
+// import (
+// 	"errors"
+// 	"fmt"
+// 	"io"
+// 	"strings"
+
+// 	"github.com/dbunta/httpfromtcp/internal/headers"
+// )
+
+// type Request struct {
+// 	RequestLine RequestLine
+// 	Headers     headers.Headers
+// 	Body        []byte
+// 	Status      int // 0 == initialized, 1 == done, 2 == parsing headers
+// }
+// type RequestLine struct {
+// 	HttpVersion   string
+// 	RequestTarget string
+// 	Method        string
+// }
+
+// const requestStateInitialized = 0
+// const requestStateDone = 1
+// const requestStateParsingHeaders = 2
+
+// func RequestFromReader(reader io.Reader) (*Request, error) {
+// 	var request2 Request
+// 	request2.Status = requestStateInitialized
+// 	readToIndex := 0
+// 	const bufferSize = 8
+// 	buffer := make([]byte, bufferSize)
+// 	var buffer2 []byte
+
+// 	bytesParsed := 0
+// 	for {
+// 		if request2.Status == requestStateDone {
+// 			break
+// 		}
+
+// 		if readToIndex >= bufferSize {
+// 			buffer2 = append(buffer2, buffer...)
+// 		}
+
+// 		bytesRead, err := reader.Read(buffer)
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		readToIndex += bytesRead
+
+// 		bytesParsed2, _ := request2.parse(buffer2)
+// 		bytesParsed += bytesParsed2
+// 		fmt.Println("-------------------")
+// 		fmt.Println(string(buffer2[bytesParsed:]))
+// 		// fmt.Printf("bytesparsed: %d\n", bytesParsed)
+// 		fmt.Println("-------------------")
+// 		readToIndex -= bytesParsed
+// 	}
+
+// 	return &request2, nil
+// }
+
+// func (r *Request) parse(data []byte) (int, error) {
+// 	// var bytesParsed int
+// 	bytesParsed := 0
+
+// 	switch r.Status {
+// 	case requestStateDone:
+// 		return 0, errors.New("error: trying to read data in done state")
+// 	case requestStateInitialized:
+// 		fmt.Println("here")
+// 		bytesParsed, err := parseRequestLine(r, data)
+// 		if err != nil {
+// 			return 0, err
+// 		}
+// 		if bytesParsed > 0 {
+// 			r.Status = requestStateParsingHeaders
+// 		}
+// 		fmt.Printf("bytesparsedinner: %d\n", bytesParsed)
+// 		return bytesParsed, nil
+// 	case requestStateParsingHeaders:
+// 		for r.Status == requestStateParsingHeaders {
+// 			// fmt.Println("------------------------------------")
+// 			// fmt.Println("data")
+// 			// fmt.Println(string(data))
+// 			// fmt.Printf("data[%d:]\n", bytesParsed)
+// 			// fmt.Println(string(data[bytesParsed:]))
+// 			// fmt.Println("------------------------------------")
+// 			// fmt.Println("------------------------------------")
+// 			n, isDone, err := r.Headers.Parse(data[bytesParsed:])
+// 			if err != nil {
+// 				fmt.Printf("%v\n", err)
+// 				return 0, err
+// 			}
+// 			bytesParsed += n
+// 			// fmt.Println("-------------------------")
+// 			// fmt.Println(n)
+// 			// fmt.Println(string(data[bytesParsed:]))
+// 			// fmt.Println("-------------------------")
+// 			if isDone {
+// 				r.Status = requestStateDone
+// 			}
+// 		}
+// 		return bytesParsed, nil
+// 	}
+// 	return 0, errors.New("blah")
+// }
+
+// func parseRequestLine(r *Request, line []byte) (int, error) {
+// 	requestStr := strings.Split(string(line), "\r\n")
+// 	if len(requestStr) == 1 {
+// 		return 0, nil
+// 	}
+
+// 	requestLine := requestStr[0]
+// 	requestLineItems := strings.Split(requestLine, " ")
+
+// 	if len(requestLineItems) < 3 {
+// 		return 0, errors.New("invalid request line")
+// 	}
+
+// 	method := requestLineItems[0]
+// 	for i := 0; i < len(method); i++ {
+// 		if method[i] > 90 || method[i] < 65 {
+// 			return 0, errors.New("invalid method")
+// 		}
+// 	}
+
+// 	target := requestLineItems[1]
+
+// 	version := requestLineItems[2]
+// 	versionParsed := strings.Split(version, "/")
+// 	if len(versionParsed) < 2 || versionParsed[0] != "HTTP" || versionParsed[1] != "1.1" {
+// 		return 0, errors.New("invalid http version")
+// 	}
+
+// 	r.RequestLine.Method = method
+// 	r.RequestLine.RequestTarget = target
+// 	r.RequestLine.HttpVersion = versionParsed[1]
+
+// 	return len(line), nil
+// }

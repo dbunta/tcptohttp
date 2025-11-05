@@ -1,128 +1,170 @@
 package request
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
+
+	"github.com/dbunta/httpfromtcp/internal/headers"
 )
 
 type Request struct {
 	RequestLine RequestLine
-	Headers     map[string]string
-	Body        []byte
-	Status      int // 0 == initialized, 1 == done
+	Headers     headers.Headers
+	state       requestState
 }
+
 type RequestLine struct {
 	HttpVersion   string
 	RequestTarget string
 	Method        string
 }
 
+type requestState int
+
+const (
+	requestStateInitialized requestState = iota
+	requestStateDone
+	requestStateParsingHeaders
+)
+
+const crlf = "\r\n"
+const bufferSize = 8
+
 func RequestFromReader(reader io.Reader) (*Request, error) {
-	// data, err := io.ReadAll(reader)
-	// var contents []byte
-	// _, err := reader.Read(contents)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// bytesRead, requestLineStr := parseRequestLine(contents)
-	// fmt.Println(bytesRead)
-	// requestLineItems := strings.Split(requestLineStr, " ")
-
-	var request2 Request
-	request2.Status = 0
+	buf := make([]byte, bufferSize, bufferSize)
 	readToIndex := 0
-	const bufferSize = 2
-	buffer := make([]byte, bufferSize)
-	var buffer2 []byte
-
-	for {
-		// if request is "Done", leave loop
-		if request2.Status == 1 {
-			break
+	req := &Request{
+		state:   requestStateInitialized,
+		Headers: headers.NewHeaders(),
+	}
+	for req.state != requestStateDone {
+		if readToIndex >= len(buf) {
+			newBuf := make([]byte, len(buf)*2)
+			copy(newBuf, buf)
+			buf = newBuf
 		}
 
-		if readToIndex >= bufferSize {
-			// newBufferSize := len(buffer) * 2
-			// buffer = make([]byte, newBufferSize)
-			// placeholder := make([]byte, newBufferSize)
-			// placeholder := append(buffer2, buffer...)
-			// buffer2 = make([]byte, newBufferSize)
-			// _ = copy(buffer2, placeholder)
-			buffer2 = append(buffer2, buffer...)
+		numBytesRead, err := reader.Read(buf[readToIndex:])
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				if req.state != requestStateDone {
+					return nil, fmt.Errorf("incomplete request")
+				}
+				break
+			}
+			return nil, err
 		}
+		readToIndex += numBytesRead
 
-		bytesRead, err := reader.Read(buffer)
+		numBytesParsed, err := req.parse(buf[:readToIndex])
 		if err != nil {
 			return nil, err
 		}
-		readToIndex += bytesRead
 
-		bytesParsed, _ := request2.parse(buffer2)
+		copy(buf, buf[numBytesParsed:])
+		readToIndex -= numBytesParsed
+	}
+	return req, nil
+}
 
-		if bytesParsed > 0 {
-			break
+func parseRequestLine(data []byte) (*RequestLine, int, error) {
+	idx := bytes.Index(data, []byte(crlf))
+	if idx == -1 {
+		return nil, 0, nil
+	}
+	requestLineText := string(data[:idx])
+	requestLine, err := requestLineFromString(requestLineText)
+	if err != nil {
+		return nil, 0, err
+	}
+	return requestLine, idx + 2, nil
+}
+
+func requestLineFromString(str string) (*RequestLine, error) {
+	parts := strings.Split(str, " ")
+	if len(parts) != 3 {
+		return nil, fmt.Errorf("poorly formatted request-line: %s", str)
+	}
+
+	method := parts[0]
+	for _, c := range method {
+		if c < 'A' || c > 'Z' {
+			return nil, fmt.Errorf("invalid method: %s", method)
 		}
 	}
 
-	return &request2, nil
+	requestTarget := parts[1]
+
+	versionParts := strings.Split(parts[2], "/")
+	if len(versionParts) != 2 {
+		return nil, fmt.Errorf("malformed start-line: %s", str)
+	}
+
+	httpPart := versionParts[0]
+	if httpPart != "HTTP" {
+		return nil, fmt.Errorf("unrecognized HTTP-version: %s", httpPart)
+	}
+	version := versionParts[1]
+	if version != "1.1" {
+		return nil, fmt.Errorf("unrecognized HTTP-version: %s", version)
+	}
+
+	return &RequestLine{
+		Method:        method,
+		RequestTarget: requestTarget,
+		HttpVersion:   versionParts[1],
+	}, nil
+}
+
+func (r *Request) parseSingle(data []byte) (int, error) {
+	switch r.state {
+	case requestStateInitialized:
+		requestLine, n, err := parseRequestLine(data)
+		if err != nil {
+			// something actually went wrong
+			return 0, err
+		}
+		if n == 0 {
+			// just need more data
+			return 0, nil
+		}
+		r.RequestLine = *requestLine
+		r.state = requestStateParsingHeaders
+		return n, nil
+	case requestStateDone:
+		return 0, fmt.Errorf("error: trying to read data in a done state")
+	case requestStateParsingHeaders:
+		fmt.Println("-------------------")
+		fmt.Printf("data: %v\n", string(data))
+		// for r.state == requestStateParsingHeaders {
+		n, isDone, err := r.Headers.Parse(data)
+		if err != nil {
+			fmt.Printf("%v\n", err)
+			return 0, err
+		}
+		if isDone {
+			r.state = requestStateDone
+		}
+		// return totalBytesParsed, nil
+		// }
+		// return totalBytesParsed, nil
+		return n, nil
+	default:
+		return 0, fmt.Errorf("unknown state")
+	}
 }
 
 func (r *Request) parse(data []byte) (int, error) {
-	var bytesParsed int
-	if r.Status == 1 {
-		return 0, errors.New("error: trying to read data in done state")
-	}
-
-	bytesParsed, err := parseRequestLine(r, data)
-	if err != nil {
-		return 0, err
-	}
-	if bytesParsed > 0 {
-		r.Status = 1
-	}
-
-	return bytesParsed, nil
-}
-
-// func parseRequestLine(line []byte) (*RequestLine, error) {
-func parseRequestLine(r *Request, line []byte) (int, error) {
-	requestStr := strings.Split(string(line), "\r\n")
-	if len(requestStr) == 1 {
-		return 0, nil
-	}
-
-	requestLine := requestStr[0]
-	requestLineItems := strings.Split(requestLine, " ")
-
-	if len(requestLineItems) < 3 {
-		return 0, errors.New("invalid request line")
-	}
-
-	method := requestLineItems[0]
-	for i := 0; i < len(method); i++ {
-		if method[i] > 90 || method[i] < 65 {
-			return 0, errors.New("invalid method")
+	totalBytesParsed := 0
+	for r.state != requestStateDone {
+		n, _ := r.parseSingle(data[totalBytesParsed:])
+		if n == 0 {
+			break
 		}
+		totalBytesParsed += n
 	}
-
-	target := requestLineItems[1]
-
-	version := requestLineItems[2]
-	versionParsed := strings.Split(version, "/")
-	if len(versionParsed) < 2 || versionParsed[0] != "HTTP" || versionParsed[1] != "1.1" {
-		return 0, errors.New("invalid http version")
-	}
-
-	r.RequestLine.Method = method
-	r.RequestLine.RequestTarget = target
-	r.RequestLine.HttpVersion = versionParsed[1]
-
-	return len(line), nil
-	// return &RequestLine{
-	// 	Method:        method,
-	// 	RequestTarget: target,
-	// 	HttpVersion:   versionParsed[1],
-	// }, 0, nil
+	return totalBytesParsed, nil
 }
