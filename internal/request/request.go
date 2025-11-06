@@ -137,9 +137,6 @@ func (r *Request) parseSingle(data []byte) (int, error) {
 	case requestStateDone:
 		return 0, fmt.Errorf("error: trying to read data in a done state")
 	case requestStateParsingHeaders:
-		fmt.Println("-------------------")
-		fmt.Printf("data: %v\n", string(data))
-		// for r.state == requestStateParsingHeaders {
 		n, isDone, err := r.Headers.Parse(data)
 		if err != nil {
 			fmt.Printf("%v\n", err)
@@ -148,9 +145,6 @@ func (r *Request) parseSingle(data []byte) (int, error) {
 		if isDone {
 			r.state = requestStateDone
 		}
-		// return totalBytesParsed, nil
-		// }
-		// return totalBytesParsed, nil
 		return n, nil
 	default:
 		return 0, fmt.Errorf("unknown state")

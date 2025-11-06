@@ -31,8 +31,13 @@ func main() {
 		}
 		fmt.Println("Request line:")
 		fmt.Printf("- Method: %s\n", req.RequestLine.Method)
-		fmt.Printf("- Target: %s\n", req.RequestLine.HttpVersion)
+		fmt.Printf("- Target: %s\n", req.RequestLine.RequestTarget)
 		fmt.Printf("- Version: %s\n", req.RequestLine.HttpVersion)
+		fmt.Println("Headers:")
+		for k, v := range req.Headers {
+			fmt.Printf("- %v: %v\n", k, v)
+		}
+
 		// channel := getLinesChannel(conn)
 		// for v := range channel {
 		// 	// fmt.Printf("read: %s\n", v)
