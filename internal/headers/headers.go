@@ -16,6 +16,14 @@ func NewHeaders() Headers {
 
 const crlf = "\r\n"
 
+func (h Headers) Get(key string) (value string, err error) {
+	val, ok := h[strings.ToLower(key)]
+	if !ok {
+		return "", fmt.Errorf("key %s does not exist in headers", key)
+	}
+	return val, nil
+}
+
 func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	crlf_b := []byte(crlf)
 	// if data does not contain crlf
