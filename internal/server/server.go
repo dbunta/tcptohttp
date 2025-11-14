@@ -1,35 +1,45 @@
 package server
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"net"
+	"os"
 	"sync/atomic"
+
+	"github.com/dbunta/httpfromtcp/internal/request"
+	"github.com/dbunta/httpfromtcp/internal/response"
 )
 
 type Server struct {
 	closed   atomic.Bool
 	listener net.Listener
+	writer   response.Writer
 }
 
-// type serverState int
+type Handler func(w io.Writer, req *request.Request) *HandlerError
 
-// const (
-// 	serverStateOpen serverState = iota
-// 	serverStateClosed
-// )
+type HandlerError struct {
+	StatusCode response.StatusCode
+	Message    string
+}
 
-func Serve(port int) (*Server, error) {
+func WriteError(w io.Writer, error HandlerError) {
+	w.Write([]byte(fmt.Sprintf("An error has occurred\r\n Status Code: %v\r\n %v\r\n", error.StatusCode, error.Message)))
+}
+
+func Serve(port int, handler Handler) (*Server, error) {
 	listener, err := net.Listen("tcp", fmt.Sprintf("localhost:%v", port))
 	if err != nil {
 		return nil, err
 	}
 
 	server := Server{
-		// closed:    serverStateOpen,
 		listener: listener,
 	}
 
-	go server.listen()
+	go server.listen(handler)
 
 	return &server, nil
 }
@@ -42,37 +52,43 @@ func (s *Server) Close() error {
 	return nil
 }
 
-func (s *Server) listen() {
+func (s *Server) listen(handler Handler) {
 	for {
 		conn, err := s.listener.Accept()
-		// if s.state != serverStateClosed {
 		if err != nil {
 			if s.closed.Load() {
 				return
 			}
 			continue
 		}
-		go s.handle(conn)
+		go s.handle(conn, handler)
 	}
 }
 
-func (s *Server) handle(conn net.Conn) {
+func (s *Server) handle(conn net.Conn, handler Handler) {
 	defer conn.Close()
-	// s.state = serverStateClosed
-	// var request []byte
-	// _, err := conn.Read(request)
-	// if err != nil {
-	// 	fmt.Printf("Error: %v", err)
-	// }
-	retval := "HTTP/1.1 200 OK\r\n" +
-		"Content-Type: text/plain\r\n" +
-		"Content-Length: 13\r\n" +
-		"\r\n" +
-		"Hello World!"
-	conn.Write([]byte(retval))
-	// if err != nil {
-	// 	fmt.Printf("Error: %v", err)
-	// }
-	// fmt.Print(retval)
-	// s.state = serverStateOpen
+
+	req, err := request.RequestFromReader(conn)
+	if err != nil {
+		os.Exit(1)
+	}
+
+	var buf []byte
+	buffer := bytes.NewBuffer(buf)
+	s.writer.Writer = conn
+
+	herr := handler(buffer, req)
+	if herr.StatusCode == 200 {
+		fmt.Println("HERE")
+		headers := response.GetDefaultHeaders(buffer.Len())
+		s.writer.WriteStatusLine(response.StatusCode200)
+		s.writer.WriteHeaders(headers)
+		conn.Write(buffer.Bytes())
+	} else {
+		fmt.Println("HERE2")
+		headers := response.GetDefaultHeaders(len(herr.Message))
+		s.writer.WriteStatusLine(herr.StatusCode)
+		s.writer.WriteHeaders(headers)
+		conn.Write([]byte(herr.Message))
+	}
 }
