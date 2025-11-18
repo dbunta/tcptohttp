@@ -16,7 +16,8 @@ const (
 )
 
 type Writer struct {
-	Writer io.Writer
+	Writer    io.Writer
+	isWriting bool
 }
 
 func (w *Writer) WriteStatusLine(statusCode StatusCode) error {
@@ -36,9 +37,10 @@ func (w *Writer) WriteStatusLine(statusCode StatusCode) error {
 
 func GetDefaultHeaders(contentLen int) headers.Headers {
 	headers := headers.NewHeaders()
-	headers["Content-Length"] = fmt.Sprintf("%v", contentLen)
-	headers["Connection"] = "close"
-	headers["Content-Type"] = "text/html"
+	// headers["Content-Length"] = fmt.Sprintf("%v", contentLen)
+	headers["Transfer-Encoding"] = "chunked"
+	// headers["Connection"] = "close"
+	// headers["Content-Type"] = "text/html"
 	return headers
 }
 
@@ -61,4 +63,15 @@ func (w *Writer) WriteBody(body []byte) error {
 		return err
 	}
 	return nil
+}
+
+func (w *Writer) WriteChunkedBody(p []byte) (int, error) {
+	// w.isWriting = true
+	return w.Writer.Write(p)
+}
+
+func (w *Writer) WriteChunkedBodyDone() (int, error) {
+	return w.Writer.Write([]byte(fmt.Sprintf("0\r\n\r\n")))
+	// w.isWriting = false
+	// return 0, nil
 }
